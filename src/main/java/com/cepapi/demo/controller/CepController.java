@@ -6,6 +6,8 @@ import com.cepapi.demo.service.CepService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/ceps")
 public class CepController {
@@ -15,7 +17,10 @@ public class CepController {
     this.cepService = cepService;
   }
 
-  @GetMapping("/{cep}")
+  @GetMapping(
+    value = "/{cep}",
+    produces = "application/json;charset=UTF-8"
+  )
   public ResponseEntity<Cep> findByCep(@PathVariable String cep) {
     return cepService.findByCep(cep)
       .map(ResponseEntity::ok)
