@@ -24,6 +24,7 @@
 
 	<properties>
 		<java.version>21</java.version>
+		<argLine/>
 
 		<spring-cloud-function.version>5.0.3</spring-cloud-function.version>
 		<azure.functions.maven.plugin.version>1.36.0</azure.functions.maven.plugin.version>
@@ -71,29 +72,11 @@
 			<artifactId>spring-boot-starter-restclient</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-
 		<!-- Azure SDK -->
 
 		<dependency>
 			<groupId>com.azure</groupId>
 			<artifactId>azure-data-tables</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>com.azure</groupId>
-			<artifactId>azure-identity</artifactId>
-		</dependency>
-
-		<!-- Lombok -->
-
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
 		</dependency>
 
 		<!-- Tests -->
@@ -114,6 +97,28 @@
 
 	<build>
 		<plugins>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+
+				<executions>
+					<execution>
+						<goals>
+							<goal>properties</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+
+				<configuration>
+					<argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+				</configuration>
+			</plugin>
 
 			<!--
                 Gera um JAR normal e coloca a classe principal

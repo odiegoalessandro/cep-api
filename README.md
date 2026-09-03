@@ -1,59 +1,44 @@
 # CEP API
 
-API em Java/Spring Boot para consultar endereços brasileiros a partir de um CEP.
+[![CI](https://github.com/odiegoalessandro/cep-api/actions/workflows/ci.yml/badge.svg)](https://github.com/odiegoalessandro/cep-api/actions/workflows/ci.yml)
 
-A aplicação busca o CEP em cache no Azure Table Storage. Caso não encontre, consulta provedores externos em sequência e salva o resultado para próximas consultas.
+API REST para consultar endereços brasileiros por CEP, construída com Java 21 e Spring Boot.
 
-## O que o projeto faz
-
-- Expõe um endpoint HTTP para consulta de CEP.
-- Consulta múltiplas APIs públicas de CEP:
-  - ViaCEP
-  - OpenCEP
-  - BrasilAPI
-- Armazena os CEPs consultados no Azure Table Storage.
-- Pode ser executado como aplicação Spring Boot ou empacotado para Azure Functions.
+O projeto aplica cache-aside com Azure Table Storage e fallback ordenado entre ViaCEP, OpenCEP e BrasilAPI. Falhas do cache não impedem a consulta aos provedores externos.
 
 ## Tecnologias
 
 - Java 21
-- Spring Boot
+- Spring Boot 4
 - Spring Web MVC
 - Spring RestClient
-- Azure Functions
 - Azure Table Storage
-- Maven
-- Lombok
+- Azure Functions
+- Maven Wrapper
+- JUnit 5, Mockito, AssertJ e MockMvc
+- GitHub Actions
 
-## Como funciona
+## Fluxo da consulta
 
-Fluxo principal da consulta:
+1. Recebe `GET /ceps/{cep}`.
+2. Aceita oito dígitos ou o formato `00000-000`.
+3. Normaliza o CEP para oito dígitos.
+4. Consulta o Azure Table Storage.
+5. Em caso de cache miss ou falha do cache, consulta ViaCEP, OpenCEP e BrasilAPI nessa ordem.
+6. Normaliza e grava o primeiro resultado encontrado no cache.
+7. Se a gravação falhar, ainda retorna o resultado do provedor.
+8. Retorna `404` quando ao menos um provedor responde sem encontrar o CEP.
+9. Retorna `503` quando todos os provedores falham.
 
-1. O cliente chama `GET /ceps/{cep}`.
-2. A aplicação procura o CEP no Azure Table Storage.
-3. Se encontrar, retorna o endereço salvo.
-4. Se não encontrar, consulta os clientes externos na ordem configurada:
-   1. ViaCEP
-   2. OpenCEP
-   3. BrasilAPI
-5. Quando algum provedor retorna o endereço, o resultado é salvo no Azure Table Storage.
-6. Se nenhum provedor encontrar o CEP, a API retorna `404 Not Found`.
+## Contrato HTTP
 
-## Endpoint
-
-### Consultar CEP
+### Consulta válida
 
 ```http
-GET /ceps/{cep}
+GET /ceps/01001-000
 ```
 
-Exemplo:
-
-```bash
-curl http://localhost:8080/ceps/01001000
-```
-
-Resposta esperada:
+Resposta `200 OK`:
 
 ```json
 {
@@ -68,73 +53,132 @@ Resposta esperada:
 }
 ```
 
-## Configuração
+O campo `cep` sempre é retornado com oito dígitos. Campos não informados pelo provedor podem ser `null`.
 
-A aplicação precisa das variáveis de ambiente para acessar o Azure Table Storage:
+### CEP inválido
 
-```env
-AZURE_STORAGE_CONNECTION_STRING=
-AZURE_STORAGE_TABLES_CEP_TABLE=
+Resposta `400 Bad Request` com `application/problem+json`:
+
+```json
+{
+  "title": "CEP inválido",
+  "status": 400,
+  "detail": "CEP deve conter oito dígitos, com hífen opcional no formato 00000-000"
+}
 ```
 
-Crie um arquivo `.env` ou configure essas variáveis no ambiente de execução.
+### CEP não encontrado
 
-O arquivo `.env.example` mostra as variáveis esperadas pelo projeto.
+Resposta `404 Not Found` com `application/problem+json`:
 
-## Como executar localmente
+```json
+{
+  "title": "CEP não encontrado",
+  "status": 404,
+  "detail": "CEP não encontrado: 99999999"
+}
+```
+
+### Provedores indisponíveis
+
+Resposta `503 Service Unavailable` com `application/problem+json`:
+
+```json
+{
+  "title": "Serviço temporariamente indisponível",
+  "status": 503,
+  "detail": "Os provedores de CEP estão temporariamente indisponíveis"
+}
+```
+
+## Resiliência
+
+- Timeout de conexão padrão: 1 segundo.
+- Timeout de leitura padrão: 2 segundos.
+- Cache tratado como best effort durante as consultas.
+- Fallback sequencial preservando a ordem dos provedores.
+- Sem retry nesta versão.
+
+## Configuração
+
+Variáveis disponíveis em `.env.example`:
+
+```dotenv
+AZURE_STORAGE_CONNECTION_STRING=
+AZURE_STORAGE_TABLES_CEP_TABLE=ceps
+HTTP_CLIENT_CONNECT_TIMEOUT=1s
+HTTP_CLIENT_READ_TIMEOUT=2s
+```
+
+O Spring Boot não carrega `.env` automaticamente. Exporte as variáveis no shell ou configure-as no ambiente de execução.
+
+A tabela informada por `AZURE_STORAGE_TABLES_CEP_TABLE` deve existir. A aplicação não executa operações de rede durante a criação do bean `TableClient`.
+
+## Execução local
 
 Pré-requisitos:
 
-- Java 21
-- Maven
-- Uma conta/storage configurado no Azure Table Storage
-
-Execute:
+- JDK 21
+- Azure Table Storage acessível
+- Tabela `ceps` criada ou outro nome configurado
 
 ```bash
-mvn spring-boot:run
+export AZURE_STORAGE_CONNECTION_STRING='<connection-string>'
+export AZURE_STORAGE_TABLES_CEP_TABLE='ceps'
+export HTTP_CLIENT_CONNECT_TIMEOUT='1s'
+export HTTP_CLIENT_READ_TIMEOUT='2s'
+./mvnw spring-boot:run
 ```
 
-A API ficará disponível em:
+Consulta:
+
+```bash
+curl http://localhost:8080/ceps/01001000
+```
+
+## Testes e CI
+
+```bash
+./mvnw -B -ntp clean verify
+```
+
+O workflow `CI` executa a suíte completa com Java 21 e verifica se o pacote do Azure Functions contém `host.json`.
+
+## Azure Functions
+
+O plugin `azure-functions-maven-plugin` gera o pacote durante o ciclo Maven:
+
+```bash
+./mvnw -B -ntp clean package
+```
+
+Saída esperada:
 
 ```text
-http://localhost:8080
+target/azure-functions/cep-api/
 ```
 
-## Como rodar os testes
-
-```bash
-mvn test
-```
-
-## Empacotamento para Azure Functions
-
-O projeto possui configuração do plugin `azure-functions-maven-plugin`.
-
-Para gerar o pacote:
-
-```bash
-mvn package
-```
-
-A aplicação está configurada para usar Java 21 e Azure Functions v4.
+Este repositório valida o empacotamento, mas não declara uma implantação pública no Azure.
 
 ## Estrutura principal
 
 ```text
 src/main/java/com/cepapi/demo
-├── client/       # Clientes para ViaCEP, OpenCEP e BrasilAPI
-├── config/       # Configurações de RestClient, encoding e Azure Table Storage
-├── controller/   # Endpoint HTTP da API
-├── domain/       # Modelo de domínio CEP
-├── dto/          # Respostas das APIs externas
-├── mapper/       # Conversão entre DTOs e domínio
-├── repository/   # Persistência no Azure Table Storage
-└── service/      # Regra de consulta, cache e fallback entre provedores
+├── client/       Clientes ViaCEP, OpenCEP e BrasilAPI
+├── config/       RestClient e Azure Table Storage
+├── controller/   Endpoint REST e tratamento de erros
+├── domain/       Modelo de domínio
+├── dto/          Contratos dos provedores externos
+├── exception/    Exceções de aplicação e infraestrutura
+├── mapper/       Conversão de DTOs
+├── repository/   Cache no Azure Table Storage
+├── service/      Cache-aside e fallback
+└── validation/   Validação e normalização de CEP
 ```
 
-## Observações
+## Limitações conhecidas
 
-- O CEP é salvo no Azure Table Storage após a primeira consulta bem-sucedida.
-- Consultas repetidas para o mesmo CEP tendem a usar o cache salvo.
-- Se o CEP não existir nos provedores externos, o endpoint retorna `404`.
+- Não possui retry, circuit breaker ou rate limiting.
+- Não possui teste de integração com uma instância real do Azure Table Storage.
+- Não provisiona automaticamente a tabela do cache.
+- Não disponibiliza endpoint público neste repositório.
