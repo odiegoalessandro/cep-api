@@ -1,4 +1,5 @@
 package com.cepapi.demo.repository.mapper;
+
 import com.azure.data.tables.models.TableEntity;
 import com.cepapi.demo.domain.Cep;
 import com.cepapi.demo.validation.CepNormalizer;
