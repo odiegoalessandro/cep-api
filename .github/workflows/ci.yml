@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Verify
+        run: ./mvnw -B -ntp clean verify
+
+      - name: Verify Azure Functions package
+        run: test -f target/azure-functions/cep-api/host.json
