@@ -52,16 +52,20 @@ class CepRepositoryTest {
 
   @Test
   void shouldReturnEmptyWhenCacheDoesNotContainCep() {
+    var notFound = httpException(404);
+
     when(tableClient.getEntity("01", "01001000"))
-      .thenThrow(httpException(404));
+      .thenThrow(notFound);
 
     assertThat(repository.findByCep("01001000")).isEmpty();
   }
 
   @Test
   void shouldTranslateCacheReadFailure() {
+    var serverError = httpException(500);
+
     when(tableClient.getEntity("01", "01001000"))
-      .thenThrow(httpException(500));
+      .thenThrow(serverError);
 
     assertThatThrownBy(() -> repository.findByCep("01001000"))
       .isInstanceOf(CepCacheException.class)
