@@ -1,8 +1,5 @@
 package com.cepapi.demo.domain;
 
-import lombok.Builder;
-
-@Builder
 public record Cep(
   String cep,
   String logradouro,
@@ -13,4 +10,17 @@ public record Cep(
   String ibge,
   String ddd
 ) {
+
+  public Cep withCep(String canonicalCep) {
+    return new Cep(
+      canonicalCep,
+      logradouro,
+      complemento,
+      bairro,
+      cidade,
+      uf,
+      ibge,
+      ddd
+    );
+  }
 }
