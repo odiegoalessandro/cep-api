@@ -1,12 +1,11 @@
 package com.cepapi.demo.controller;
 
-
 import com.cepapi.demo.domain.Cep;
 import com.cepapi.demo.service.CepService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/ceps")
@@ -17,13 +16,8 @@ public class CepController {
     this.cepService = cepService;
   }
 
-  @GetMapping(
-    value = "/{cep}",
-    produces = "application/json;charset=UTF-8"
-  )
-  public ResponseEntity<Cep> findByCep(@PathVariable String cep) {
-    return cepService.findByCep(cep)
-      .map(ResponseEntity::ok)
-      .orElseGet(() -> ResponseEntity.notFound().build());
+  @GetMapping("/{cep}")
+  public Cep findByCep(@PathVariable String cep) {
+    return cepService.findByCep(cep);
   }
 }
