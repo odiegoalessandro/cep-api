@@ -3,6 +3,7 @@ package com.cepapi.demo.client;
 import com.cepapi.demo.domain.Cep;
 import com.cepapi.demo.dto.ViaCepResponse;
 import com.cepapi.demo.mapper.CepMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -14,8 +15,10 @@ import java.util.Optional;
 public class ViaCepClient implements CepClient {
   private final RestClient restClient;
 
-  public ViaCepClient(RestClient viaCepRestClient) {
-    this.restClient = viaCepRestClient;
+  public ViaCepClient(
+    @Qualifier("viaCepRestClient") RestClient restClient
+  ) {
+    this.restClient = restClient;
   }
 
   @Override
