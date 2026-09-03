@@ -78,11 +78,6 @@
 			<artifactId>azure-data-tables</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>com.azure</groupId>
-			<artifactId>azure-identity</artifactId>
-		</dependency>
-
 		<!-- Tests -->
 
 		<dependency>

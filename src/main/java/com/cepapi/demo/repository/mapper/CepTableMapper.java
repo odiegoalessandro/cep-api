@@ -41,10 +41,6 @@ public final class CepTableMapper {
     return cep.substring(0, 2);
   }
 
-  public static String normalize(String cep) {
-    return CepNormalizer.normalize(cep);
-  }
-
   private static String property(TableEntity entity, String name) {
     var value = entity.getProperty(name);
     return value != null ? value.toString() : null;

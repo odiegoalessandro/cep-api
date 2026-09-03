@@ -1,10 +1,12 @@
 package com.cepapi.demo.repository;
 
-import com.azure.data.tables.TableClient;
-import com.azure.data.tables.models.TableEntity;
+import com.azure.core.exception.AzureException;
 import com.azure.core.exception.HttpResponseException;
+import com.azure.data.tables.TableClient;
 import com.cepapi.demo.domain.Cep;
+import com.cepapi.demo.exception.CepCacheException;
 import com.cepapi.demo.repository.mapper.CepTableMapper;
+import com.cepapi.demo.validation.CepNormalizer;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -18,40 +20,39 @@ public class CepRepository {
     this.tableClient = tableClient;
   }
 
-  public void save(Cep cep) {
-    tableClient.upsertEntity(
-      CepTableMapper.toTableEntity(cep)
-    );
-  }
-
   public Optional<Cep> findByCep(String cep) {
-    var normalizedCep = CepTableMapper.normalize(cep);
-    var partitionKey = CepTableMapper.partitionKey(normalizedCep);
+    var canonicalCep = CepNormalizer.normalize(cep);
 
     try {
-      TableEntity entity = tableClient.getEntity(
-        partitionKey,
-        normalizedCep
+      var entity = tableClient.getEntity(
+        CepTableMapper.partitionKey(canonicalCep),
+        canonicalCep
       );
 
-      return Optional.of(
-        CepTableMapper.toDomain(entity)
-      );
+      return Optional.of(CepTableMapper.toDomain(entity));
     } catch (HttpResponseException exception) {
-      if (exception.getResponse().getStatusCode() == 404) {
+      if (exception.getResponse() != null
+        && exception.getResponse().getStatusCode() == 404) {
         return Optional.empty();
       }
 
-      throw exception;
+      throw readFailure(exception);
+    } catch (AzureException exception) {
+      throw readFailure(exception);
     }
   }
 
-  public void delete(String cep) {
-    var normalizedCep = CepTableMapper.normalize(cep);
+  public void save(Cep cep) {
+    var entity = CepTableMapper.toTableEntity(cep);
 
-    tableClient.deleteEntity(
-      CepTableMapper.partitionKey(normalizedCep),
-      normalizedCep
-    );
+    try {
+      tableClient.upsertEntity(entity);
+    } catch (AzureException exception) {
+      throw new CepCacheException("Falha ao salvar o CEP no cache", exception);
+    }
+  }
+
+  private CepCacheException readFailure(AzureException cause) {
+    return new CepCacheException("Falha ao consultar o cache de CEP", cause);
   }
 }
